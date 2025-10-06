@@ -12,7 +12,6 @@ _ROUND_DIR_PATTERN = re.compile(r"^round_(\d+)$")
 
 
 def discover_round_dirs(run_dir: Path | str) -> Dict[int, Path]:
-    """返回从轮次索引到其目录路径的映射"""
     base = Path(run_dir)
     if not base.exists():
         raise FileNotFoundError(f"Run directory not found: {base}")
@@ -46,7 +45,6 @@ def _coerce_affiliation(value: Optional[str]) -> Optional[str]:
 
 
 def load_round_profiles(run_dir: Path | str) -> Dict[int, Dict[str, Dict[str, Any]]]:
-    """加载每个轮次的 `round_*_profile.json` 快照"""
     profiles_by_round: Dict[int, Dict[str, Dict[str, Any]]] = {}
     for round_idx, round_path in discover_round_dirs(run_dir).items():
         profile_path = round_path / f"round_{round_idx}_profile.json"
@@ -58,7 +56,6 @@ def load_round_profiles(run_dir: Path | str) -> Dict[int, Dict[str, Dict[str, An
 
 
 def summarize_affiliations_by_round(run_dir: Path | str) -> Dict[int, Dict[str, int]]:
-    """统计每个轮次的政治倾向数量，用于后续绘图"""
     summary: Dict[int, Dict[str, int]] = {}
     for round_idx, profiles in load_round_profiles(run_dir).items():
         counter: Counter[str] = Counter()
@@ -71,7 +68,6 @@ def summarize_affiliations_by_round(run_dir: Path | str) -> Dict[int, Dict[str, 
 
 
 def extract_affiliation_timeline(run_dir: Path | str) -> Dict[str, List[Tuple[int, Optional[str]]]]:
-    """构建每个智能体的倾向时间线"""
     timeline: Dict[str, List[Tuple[int, Optional[str]]]] = defaultdict(list)
     for round_idx, profiles in load_round_profiles(run_dir).items():
         for agent_id, record in profiles.items():
@@ -80,7 +76,6 @@ def extract_affiliation_timeline(run_dir: Path | str) -> Dict[str, List[Tuple[in
 
 
 def detect_affiliation_changes(run_dir: Path | str) -> List[Dict[str, Any]]:
-    """检测与前一个快照相比的政治倾向变化"""
     changes: List[Dict[str, Any]] = []
     for agent_id, entries in extract_affiliation_timeline(run_dir).items():
         previous_affiliation: Optional[str] = None
@@ -107,7 +102,6 @@ def detect_affiliation_changes(run_dir: Path | str) -> List[Dict[str, Any]]:
 
 
 def extract_propagation_edges(run_dir: Path | str) -> List[Dict[str, Any]]:
-    """提取每个新闻传递事件的有向传播边"""
     edges: List[Dict[str, Any]] = []
     for round_idx, round_path in discover_round_dirs(run_dir).items():
         propagation_path = round_path / f"round_{round_idx}_propagation.json"
@@ -138,7 +132,6 @@ def extract_propagation_edges(run_dir: Path | str) -> List[Dict[str, Any]]:
 
 
 def build_news_propagation_map(run_dir: Path | str) -> Dict[str, Dict[str, Any]]:
-    """按新闻id分组传播边，用于链分析和绘图"""
     news_map: Dict[str, Dict[str, Any]] = {}
     for edge in extract_propagation_edges(run_dir):
         news_id = edge.get("news_id")
@@ -167,7 +160,6 @@ def build_news_propagation_map(run_dir: Path | str) -> Dict[str, Dict[str, Any]]
 
 
 def compute_news_reach(news_map: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
-    """从传播映射中计算每条新闻的唯一接收者数量"""
     reach: Dict[str, int] = {}
     for news_id, bucket in news_map.items():
         unique_targets = {edge.get("target") for edge in bucket.get("transmissions", []) if edge.get("target")}
@@ -176,7 +168,6 @@ def compute_news_reach(news_map: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
 
 
 def iter_round_files(run_dir: Path | str, suffix: str) -> Iterable[Tuple[int, Path]]:
-    """生成轮次索引和文件路径，用于匹配请求的后缀文件"""
     for round_idx, round_path in discover_round_dirs(run_dir).items():
         candidate = round_path / f"round_{round_idx}_{suffix}"
         if candidate.exists():

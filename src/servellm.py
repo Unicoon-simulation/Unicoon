@@ -7,7 +7,6 @@ from typing import List, Dict, Any, Optional
 
 import httpx
 
-# 请求总超时时间（秒）
 REQUEST_TIMEOUT_SECONDS = 1000.0
 MAX_RETRIES = 3
 BACKOFF_BASE = 1.5
@@ -18,7 +17,6 @@ REQUEST_TIMEOUT = httpx.Timeout(REQUEST_TIMEOUT_SECONDS)
 
 
 def _compute_backoff(attempt: int) -> float:
-    """计算带抖动的退避等待时间。"""
     wait = min(BACKOFF_BASE ** attempt, BACKOFF_CAP)
     return wait + random.uniform(*JITTER_RANGE)
 
@@ -29,16 +27,6 @@ async def submit(
     parse_type: str = "json",
     **kwargs
 ) -> Any:
-    """
-    提交消息到LLM服务，生成失败时自动重试。
-    Args:
-        messages: 待提交的消息列表，格式为[{"role": "user", "content": "..."}]
-        executor: LLM执行器实例
-        parse_type: 解析类型，用于调用不同的解析方法
-        **kwargs: 其他参数
-    Returns:
-        LLM服务的响应结果
-    """
     logger = logging.getLogger("servellm")
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -66,17 +54,6 @@ async def call_openai_api(
     model: str,
     **kwargs
 ) -> Optional[str]:
-    """
-    直接调用OpenAI兼容API。
-    Args:
-        messages: 消息列表
-        base_url: API基础URL
-        api_key: API密钥
-        model: 模型名称
-        **kwargs: 其他参数
-    Returns:
-        API响应内容，失败时返回None
-    """
     logger = logging.getLogger("servellm")
 
     headers = {
@@ -91,7 +68,6 @@ async def call_openai_api(
         "max_tokens": kwargs.get("max_tokens", 1000)
     }
 
-    # 指定OpenRouter供应商顺序，确保路由到指定供应商
     provider_slug = os.getenv("OPENROUTER_PROVIDER")
     if provider_slug:
         providers = [p.strip() for p in provider_slug.split(',') if p.strip()]
@@ -101,7 +77,6 @@ async def call_openai_api(
                 "allow_fallbacks": len(providers) > 1,
             }
 
-    # Qwen3 特定参数：关闭 think 模式
     extra_body = {"chat_template_kwargs": {"enable_thinking": False}}
 
     try:
@@ -132,15 +107,6 @@ def format_messages(
     role: str = "user",
     system_prompt: Optional[str] = None
 ) -> List[Dict[str, str]]:
-    """
-    格式化消息为OpenAI格式。
-    Args:
-        content: 消息内容
-        role: 消息角色，默认为"user"
-        system_prompt: 系统提示词，可选
-    Returns:
-        格式化后的消息列表
-    """
     messages = []
 
     if system_prompt:
@@ -152,13 +118,6 @@ def format_messages(
 
 
 def extract_json_from_response(response: str) -> Optional[Dict]:
-    """
-    从响应中提取JSON数据。
-    Args:
-        response: LLM响应字符串
-    Returns:
-        提取的JSON对象，失败时返回None
-    """
     response = response.strip()
 
     try:

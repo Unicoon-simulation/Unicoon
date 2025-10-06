@@ -1,4 +1,3 @@
-"""用于跟踪各个智能体在轮次间政治倾向变化的工具"""
 
 from __future__ import annotations
 
@@ -8,7 +7,6 @@ from typing import Dict, Any
 
 from dataclass import AgentSnapshot
 
-# 定义倾向映射，数值越大表示越偏左
 AFFILIATION_SCALE: Dict[str, int] = {
     "far left": 2,
     "left": 1,
@@ -19,7 +17,6 @@ AFFILIATION_SCALE: Dict[str, int] = {
 
 
 def capture_affiliation_snapshot(agents: Dict[str, AgentSnapshot]) -> Dict[str, str]:
-    """返回每个智能体的当前政治倾向"""
     return {
         agent_id: agent.profile.political_affiliation
         for agent_id, agent in agents.items()
@@ -27,7 +24,6 @@ def capture_affiliation_snapshot(agents: Dict[str, AgentSnapshot]) -> Dict[str, 
 
 
 def _affiliation_to_score(affiliation: str) -> int:
-    """将文本倾向转换为数值评分"""
     return AFFILIATION_SCALE.get(affiliation.lower(), 0) if affiliation else 0
 
 
@@ -37,7 +33,6 @@ def summarize_political_shift(
     round_id: int,
     topic: str | None = None,
 ) -> Dict[str, Any]:
-    """生成各智能体变化记录和简单聚合统计"""
     per_agent = []
     shift_left = 0
     shift_right = 0
@@ -110,7 +105,6 @@ def summarize_political_shift(
 
 
 def dump_round_report(round_dir: Path, summary: Dict[str, Any]) -> Path:
-    """将轮次政治倾向变化摘要写入磁盘"""
     round_id = summary["round"]
     report_path = round_dir / f"round_{round_id}_politics.json"
     with report_path.open("w", encoding="utf-8") as fp:

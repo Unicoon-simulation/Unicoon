@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""可配置讨论议题的智能体角色合成工具。"""
 
 from __future__ import annotations
 
@@ -14,7 +13,6 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 
-# 将项目根目录加入到 sys.path，便于复用现有模块
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
@@ -22,7 +20,6 @@ if str(SRC_DIR) not in sys.path:
 
 from servellm import call_openai_api, extract_json_from_response, format_messages
 
-# 默认议题列表，来源于 Social-Bots-Meet-LLM 的常见公共议题
 DEFAULT_TOPICS: List[str] = [
     "Climate change and environmental policy",
     "Healthcare access and public health",
@@ -35,7 +32,6 @@ DEFAULT_TOPICS: List[str] = [
     "LGBTQ+ rights and civil liberties",
 ]
 
-# 生成 agent 提示的模板，保持与现有 dataclass.AgentProfile 一致
 AGENT_PROMPT_TEMPLATE = (
     "Imagine you are a human. Your name is {name}, and your gender is {gender}. "
     "You are {age} years old. Your personality is shaped by these specific traits: {traits_str}. "
@@ -45,7 +41,6 @@ AGENT_PROMPT_TEMPLATE = (
     "responses, interactions, and decisions."
 )
 
-# 系统提示，约束模型只返回 JSON
 SYSTEM_PROMPT = (
     "You are an expert sociologist who specialises in building diverse personas for social "
     "simulation. You must always return compact, strictly valid JSON and never add extra prose."
@@ -53,7 +48,6 @@ SYSTEM_PROMPT = (
 
 
 def parse_args() -> argparse.Namespace:
-    """解析命令行参数。"""
     parser = argparse.ArgumentParser(
         description="Generate agent persona backgrounds via an OpenAI-compatible API."
     )
@@ -132,7 +126,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_topics(args: argparse.Namespace) -> List[str]:
-    """根据命令行输入返回有序的议题列表。"""
     if args.topics:
         topics = [topic.strip() for topic in args.topics if topic.strip()]
         if not topics:
@@ -153,12 +146,10 @@ def resolve_topics(args: argparse.Namespace) -> List[str]:
 
 
 def ensure_ascii(text: str) -> str:
-    """通过替换不支持的字符将文本强制转换为ASCII。"""
     return text.encode("ascii", errors="ignore").decode("ascii")
 
 
 def resolve_model_name(base_url: str, model_arg: Optional[str]) -> str:
-    """解析模型名称，可选地查询LLM服务器。"""
     if model_arg:
         return model_arg
 
@@ -199,7 +190,6 @@ def build_persona_prompt(
     topics: Iterable[str],
     start_index: int,
 ) -> str:
-    """构建角色生成提示内容。"""
     topic_lines = "\n".join(f"- {topic}" for topic in topics)
     index_preview = ", ".join(str(start_index + idx) for idx in range(count))
 
@@ -245,7 +235,6 @@ def merge_backgrounds(
     accumulator: Dict[str, Dict[str, Any]],
     payload: Dict[str, Any],
 ) -> None:
-    """将载荷中的角色记录合并到累加器中，并进行偏移调整。"""
     backgrounds = payload.get("backgrounds")
     if not isinstance(backgrounds, dict):
         raise ValueError("LLM response missing 'backgrounds' dictionary.")
@@ -268,7 +257,6 @@ def merge_backgrounds(
 
 
 def normalize_persona(persona: Dict[str, Any]) -> Dict[str, Any]:
-    """清理和后处理角色字段以满足模拟器要求。"""
     required_fields = [
         "name",
         "age",
@@ -291,7 +279,6 @@ def normalize_persona(persona: Dict[str, Any]) -> Dict[str, Any]:
     persona["education level"] = ensure_ascii(str(persona["education level"]).strip())
     persona["self-awareness"] = ensure_ascii(str(persona["self-awareness"]).strip())
 
-    # traits 字段统一为字符串列表，移除空内容
     traits = persona.get("traits", [])
     if isinstance(traits, str):
         traits = [traits]
@@ -301,7 +288,6 @@ def normalize_persona(persona: Dict[str, Any]) -> Dict[str, Any]:
     if not persona["traits"]:
         raise ValueError("Persona must include at least one personality trait.")
 
-    # 讨论议题最少一个
     discussion_topics = persona.get("discussion_topics", [])
     if isinstance(discussion_topics, str):
         discussion_topics = [discussion_topics]
@@ -314,7 +300,6 @@ def normalize_persona(persona: Dict[str, Any]) -> Dict[str, Any]:
     if not persona["discussion_topics"]:
         raise ValueError("Persona must list at least one discussion topic.")
 
-    # topic_positions 仅保留 discussion_topics 内的键
     topic_positions = persona.get("topic_positions", {})
     if isinstance(topic_positions, list):
         topic_positions = {
@@ -330,13 +315,11 @@ def normalize_persona(persona: Dict[str, Any]) -> Dict[str, Any]:
         if str(topic_positions.get(topic, "")).strip()
     }
 
-    # 若缺少 communication_style 则补充默认描述
     if not persona.get("communication_style"):
         persona["communication_style"] = "Prefers balanced, source-backed arguments."
     else:
         persona["communication_style"] = ensure_ascii(str(persona["communication_style"]).strip())
 
-    # system_prompt 若缺失则按模板生成
     if not persona.get("system_prompt"):
         persona["system_prompt"] = AGENT_PROMPT_TEMPLATE.format(
             name=persona["name"],
@@ -363,7 +346,6 @@ async def request_batch(
     temperature: float,
     max_tokens: int,
 ) -> Dict[str, Any]:
-    """调用LLM一次合成一批角色。"""
     prompt = build_persona_prompt(count=count, topics=topics, start_index=start_index)
     messages = format_messages(prompt, role="user", system_prompt=SYSTEM_PROMPT)
 
@@ -390,7 +372,6 @@ async def generate_personas(
     args: argparse.Namespace,
     model_name: str,
 ) -> Dict[str, Dict[str, Any]]:
-    """批量生成角色并返回合并的字典。"""
     topics = resolve_topics(args)
     batch_size = max(1, min(args.batch_size, args.count))
 
@@ -440,7 +421,6 @@ async def generate_personas(
 
 
 def write_output(path: Path, backgrounds: Dict[str, Dict[str, Any]], overwrite: bool) -> None:
-    """将角色字典持久化到JSON文件。"""
     if backgrounds and path.exists() and not overwrite:
         raise FileExistsError(f"Output file {path} already exists. Use --overwrite to replace it.")
 
@@ -450,13 +430,11 @@ def write_output(path: Path, backgrounds: Dict[str, Dict[str, Any]], overwrite: 
 
 
 def configure_logging(verbose: bool) -> None:
-    """根据详细程度标志配置日志。"""
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 def main() -> None:
-    """命令行工具的入口点。"""
     args = parse_args()
     configure_logging(args.verbose)
 

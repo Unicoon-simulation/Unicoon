@@ -14,7 +14,6 @@ def render_prompt_template(template: str, context: Dict[str, Any]) -> str:
         rendered = rendered.replace(f"{{{key}}}", str(value))
     return rendered
 
-# 全局提示词配置缓存
 _prompts_config = None
 
 
@@ -26,13 +25,6 @@ SJT_MEMORY_GUIDANCE = (
 )
 
 def load_prompts_config(config_path: str = "config/prompts.json") -> Dict[str, Any]:
-    """
-    加载提示词配置文件
-    Args:
-        config_path: 配置文件路径
-    Returns:
-        提示词配置字典
-    """
     global _prompts_config
     if _prompts_config is None:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -40,34 +32,13 @@ def load_prompts_config(config_path: str = "config/prompts.json") -> Dict[str, A
     return _prompts_config
 
 def format_news_list(news_list: List[News]) -> str:
-    """
-    格式化新闻列表为英文格式
-    Args:
-        news_list: 新闻列表
-    Returns:
-        格式化后的新闻列表字符串
-    """
     return "\n".join([f"{i}. **[{news.topic}]** {news.content}" 
                      for i, news in enumerate(news_list, 1)])
 
 def format_discussion_history(history: List[Dict[str, Any]]) -> str:
-    """
-    格式化讨论历史记录
-    Args:
-        history: 讨论历史列表
-    Returns:
-        格式化后的讨论历史字符串
-    """
     return "\n".join([f"**{turn['speaker']}**: {turn['utterance']}" for turn in history])
 
 def format_social_relationships(following_list: Dict[str, Any]) -> str:
-    """
-    格式化社交关系信息
-    Args:
-        following_list: 关注列表字典
-    Returns:
-        格式化后的社交关系字符串
-    """
     return "\n".join([f"- {agent_id} (Trust: {score.trust:.2f}, Interest: {score.interest:.2f})" 
                      for agent_id, score in following_list.items()])
 
@@ -76,15 +47,6 @@ def build_rec_prompt(
     news_list: List[News],
     prompts: Dict[str, str] = None
 ) -> str:
-    """
-    构建推荐prompt，使用英文提示词模板
-    Args:
-        agent: 智能体快照对象
-        news_list: 可推荐的新闻列表
-        prompts: 自定义提示词字典，可选
-    Returns:
-        构建好的推荐提示词字符串
-    """
     config = load_prompts_config()
     rec_config = config["prompts"]["recommendation"]
 
@@ -120,15 +82,6 @@ def build_news_rewrite_prompt(
     news_list: List[News],
     prompts: Dict[str, str] = None
 ) -> str:
-    """
-    构建新闻改写prompt，用于智能体决定是否改写新闻
-    Args:
-        agent: 智能体快照对象
-        news_list: 要处理的新闻列表
-        prompts: 自定义提示词字典，可选
-    Returns:
-        构建好的新闻改写提示词字符串
-    """
     config = load_prompts_config()
     rewrite_config = config["prompts"]["news_rewrite"]
 
@@ -167,17 +120,6 @@ def build_news_process_prompt(
     news_ids: List[str],
     prompts: Dict[str, str] = None
 ) -> str:
-    """
-    构建新闻处理prompt，用于新闻改写和评分更新（向后兼容）
-    Args:
-        agent: 智能体快照对象
-        grouped_news: 要处理的新闻列表
-        source_agents: 新闻来源智能体列表
-        news_ids: 新闻ID列表
-        prompts: 自定义提示词字典，可选
-    Returns:
-        构建好的新闻处理提示词字符串
-    """
     return build_news_rewrite_prompt(agent, grouped_news, prompts)
 
 
@@ -186,27 +128,15 @@ def build_group_discussion_prompt(
     discussion_context: Dict[str, Any],
     prompts: Dict[str, str] = None
 ) -> str:
-    """
-    构建群组讨论prompt，生成智能体在群组讨论中的发言
-    Args:
-        agent: 智能体快照对象
-        discussion_context: 讨论上下文，包含话题、历史对话等
-        prompts: 自定义提示词字典，可选
-    Returns:
-        构建好的群组讨论提示词字符串
-    """
     config = load_prompts_config()
     discussion_config = config["prompts"]["group_discussion"]
     
-    # 获取智能体特征信息
     profile = agent.profile
     memory = agent.memory
     traits_str = ", ".join(profile.traits)
     
-    # 构建系统提示
     system_prompt = discussion_config["system_prompt"]
     
-    # 构建用户提示
     user_prompt = discussion_config["user_template"].format(
         name=profile.name,
         age=profile.age,
@@ -232,7 +162,6 @@ def build_persuasion_prompt(
     context_messages: str,
     environment: str = "the current socio-political environment"
 ) -> str:
-    """构建劝说型提示词。"""
     profile = agent.profile
     target_profile = target.profile
 
@@ -261,47 +190,32 @@ def build_update_agent_prompt(
     round_activities: Dict[str, Any],
     prompts: Dict[str, str] = None
 ) -> str:
-    """
-    构建智能体更新prompt，用于记忆整理和状态更新
-    Args:
-        agent: 智能体快照对象
-        round_activities: 本轮活动记录，包含新闻互动、讨论等
-        prompts: 自定义提示词字典，可选
-    Returns:
-        构建好的智能体更新提示词字符串
-    """
     config = load_prompts_config()
     memory_config = config["prompts"]["memory_update"]
     
-    # 获取智能体信息
     profile = agent.profile
     memory = agent.memory
     traits_str = ", ".join(profile.traits)
     
-    # 构建活动历史
     action_history = f"News interactions: {round_activities['news_interactions']} items. Group discussions: {round_activities['discussions']} sessions."
     
-    # 构建详细的新闻来源信息
     news_by_source_text = ""
     if "received_news_by_source" in round_activities:
         for sender_id, news_list in round_activities["received_news_by_source"].items():
             news_by_source_text += f"\n**News received from {sender_id}:**\n"
             for news in news_list:
                 news_by_source_text += f"- News ID: {news['news_id']}\n"
-                news_by_source_text += f"  Content: {news['content']}\n"  # 完整内容
+                news_by_source_text += f"  Content: {news['content']}\n"
                 news_by_source_text += f"  Topic: {news['topic']}\n\n"
     else:
         news_by_source_text = "本轮未收到任何新闻"
     
-    # 构建接收消息信息（使用详细的按来源分组信息）
     received_messages = news_by_source_text
     
-    # 构建系统提示
     system_prompt = memory_config["system_prompt"]
     if os.getenv("UNICOON_SJT_MEMORY") == "1":
         system_prompt = f"{system_prompt}\n\n{SJT_MEMORY_GUIDANCE}"
     
-    # 构建用户提示
     user_prompt = memory_config["user_template"].format(
         name=profile.name,
         age=profile.age,
@@ -367,18 +281,6 @@ def build_content_correction_prompt(
     specific_errors: str,
     prompts: Dict[str, str] = None
 ) -> str:
-    """
-    构建内容修正prompt，用于修复失败的新闻改写任务
-    Args:
-        agent: 智能体快照对象
-        news_summary: 原始新闻摘要
-        failure_analysis: 失败分析
-        original_failed_output: 原始失败输出
-        specific_errors: 具体错误信息
-        prompts: 自定义提示词字典，可选
-    Returns:
-        构建好的内容修正提示词字符串
-    """
     config = load_prompts_config()
     correction_config = config["prompts"]["content_correction"]
     

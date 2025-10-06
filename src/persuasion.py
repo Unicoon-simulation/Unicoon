@@ -1,4 +1,3 @@
-"""生成劝说型消息的辅助模块。"""
 
 from __future__ import annotations
 
@@ -14,7 +13,6 @@ logger = logging.getLogger("persuasion")
 
 
 def _summarize_context(snippets: Sequence[str], limit: int = 3) -> str:
-    """将上下文消息拼接为短字符串。"""
     filtered = [snippet.strip() for snippet in snippets if snippet]
     if not filtered:
         return ""
@@ -29,7 +27,6 @@ async def generate_persuasion_decision(
     context_snippets: Sequence[str],
     executor,
 ) -> Dict[str, Any]:
-    """调用 LLM 判断是否需要劝说并生成消息。"""
     context_messages = _summarize_context(context_snippets)
     prompt = build_persuasion_prompt(
         agent=agent,

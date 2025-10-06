@@ -14,7 +14,6 @@ _KEYWORD_PATTERN_LATIN = re.compile(r"[A-Za-z]{4,}")
 _KEYWORD_PATTERN_CJK = re.compile(r"[\u4e00-\u9fa5]{2,}")
 
 def extract_keywords(discussion_log: List[Dict[str, Any]], limit: int = 5) -> List[str]:
-    """基于规则的关键词提取，覆盖英文和中文。"""
     counter: Counter = Counter()
     for entry in discussion_log:
         utterance = entry.get("utterance", "")
@@ -28,7 +27,6 @@ def build_discussion_summary(
     discussion_log: List[Dict[str, Any]],
     news_list: List[News] | None
 ) -> Dict[str, Any]:
-    """生成便于分析的讨论摘要。"""
     if not discussion_log:
         topics = [getattr(news, "topic", "") for news in (news_list or []) if getattr(news, "topic", "")]
         return {
@@ -69,16 +67,6 @@ async def generate_utterance(
     news_items: List[News],
     executor
 ) -> str:
-    """
-    为智能体生成一句讨论发言
-    Args:
-        agent: 智能体快照
-        discussion_history: 讨论历史记录列表
-        news_items: 讨论的新闻对象列表
-        executor: LLM执行器
-    Returns:
-        发言内容字符串
-    """
     logger = logging.getLogger("discuss")
     
     discussion_context = {
@@ -119,22 +107,10 @@ async def run_discussion_group(
     executor,
     news_list: List[News] | None = None
 ):
-    """
-    驱动单个讨论小组完成3轮对话
-    Args:
-        group_members: 小组成员的agent_id列表
-        group_id: 该小组的唯一标识符
-        agents: 智能体字典
-        executor: LLM执行器
-        news_list: 讨论的新闻列表
-    Returns:
-        包含完整对话记录的字典
-    """
     logger = logging.getLogger("discuss")
-    max_turns = 3  # 固定3轮讨论
+    max_turns = 3
     discussion_log = []
 
-    # 进行3轮讨论，每轮每人发言一次
     for turn in range(1, max_turns + 1):
         
         for speaker_id in group_members:
@@ -181,7 +157,6 @@ async def run_discussion_group(
                         decision["topic"] = topic
                         persuasion_info = decision
 
-                # 记录发言到讨论日志
                 discussion_entry = {
                     "turn": turn,
                     "speaker_id": speaker_id,
@@ -195,7 +170,6 @@ async def run_discussion_group(
                 
     
     
-    # 创建讨论记录并存储到每个参与者的记忆中
     from dataclass import DiscussionRec, TalkInTurn
     
     discussion_summary = build_discussion_summary(discussion_log, news_list)
@@ -213,12 +187,10 @@ async def run_discussion_group(
         summary=discussion_summary,
     )
     
-    # 将讨论记录存入每个参与者的记忆
     for member_id in group_members:
         if member_id in agents:
             agents[member_id].memory.discuss_mem.append(discussion_rec)
     
-    # 返回讨论记录
     return {
         "group_id": group_id,
         "members": group_members,

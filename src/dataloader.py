@@ -20,12 +20,10 @@ from dataclass import (
 
 logger = logging.getLogger("dataloader")
 
-# 默认评分
 DEFAULT_TRUST = 0.5
 DEFAULT_INTEREST = 0.5
 _SNAPSHOT_VERSION = 1
 
-# 新闻缓存，避免每轮重复加载
 _NEWS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
@@ -89,7 +87,6 @@ def load_graph_from_file(
     edge_file: str,
     round_id: int = 0
 ) -> Tuple[nx.DiGraph, Set[str], List[Tuple[str, str, float, float]]]:
-    """从边文件加载图数据。"""
     graph = nx.DiGraph()
     node_list: Set[str] = set()
     edge_list: List[Tuple[str, str, float, float]] = []
@@ -118,7 +115,6 @@ def load_graph_from_file(
 def load_agent_profile(
     profile_file: str
 ) -> Dict[str, AgentSnapshot]:
-    """从文件加载智能体配置文件。"""
     with open(profile_file, 'r', encoding='utf-8') as f:
         data = json.load(f)["backgrounds"]
 
@@ -166,7 +162,6 @@ def load_news(
     news_start: int = 0,
     news_end: int = -1
 ) -> List[News]:
-    """加载新闻文件并返回指定范围的新闻对象。"""
     payload = _get_news_payload(news_file)
     news_list: List[News] = []
 
@@ -188,7 +183,6 @@ def load_news(
 
 
 def sync_edges_from_agents(agents: Dict[str, AgentSnapshot]) -> List[Tuple[str, str, float, float]]:
-    """从智能体内存中同步评分到边列表。"""
     edge_list = []
     for agent_id, agent in agents.items():
         for target_id, score in agent.memory.following_list.items():
@@ -201,7 +195,6 @@ def save_graph(
     round_id: int,
     output_dir: str
 ) -> bool:
-    """保存边文件。"""
     os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, f"round_{round_id}_edges.edges")
 
@@ -218,7 +211,6 @@ def save_agent_profile(
     round_id: int,
     output_dir: str
 ) -> bool:
-    """保存智能体配置和记忆状态。"""
     os.makedirs(output_dir, exist_ok=True)
     profile_path = os.path.join(output_dir, f"round_{round_id}_profile.json")
     mem_path = os.path.join(output_dir, f"round_{round_id}_mem.json")

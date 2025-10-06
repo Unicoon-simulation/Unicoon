@@ -15,7 +15,6 @@ from typing import Dict, Sequence, TextIO
 
 import httpx
 
-# 将项目根目录加入到 sys.path，便于复用现有模块
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:

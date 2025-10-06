@@ -1,4 +1,3 @@
-"""分层记忆与社交演化的简单实现。"""
 
 import logging
 from collections import defaultdict
@@ -18,8 +17,8 @@ WORKING_MEMORY_LIMIT = 20
 WORKING_SUMMARY_LENGTH = 160
 SHORT_TERM_PROMOTION_THRESHOLD = 3
 LONG_TERM_MEMORY_LIMIT = 2000
-RELATIONSHIP_DECAY_STEP = 0.02  # 每轮未互动时信任与兴趣的衰减幅度
-RELATIONSHIP_REMOVE_THRESHOLD = 0.3  # 任一维度低于该阈值将移除关注关系
+RELATIONSHIP_DECAY_STEP = 0.02
+RELATIONSHIP_REMOVE_THRESHOLD = 0.3
 
 logger = logging.getLogger("memory_pipeline")
 
@@ -80,7 +79,6 @@ def _promote_to_long_term(existing: str, addition: str) -> str:
 
 
 def process_agent_memory(agent: AgentSnapshot, round_id: int) -> Dict[str, Any]:
-    """执行分层记忆更新并调整社交评分。"""
     working_entries: List[WorkingMemoryEntry] = []
     relevant_entries: List[WorkingMemoryEntry] = []
     social_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "topics": set()})
@@ -184,7 +182,6 @@ def process_agent_memory(agent: AgentSnapshot, round_id: int) -> Dict[str, Any]:
         social_updates["skipped_due_to_failure"] = True
         logger.debug("Agent %s skipped decay due to earlier LLM failure", agent.agent_id)
     else:
-        # 对本轮没有互动的关注关系进行衰减，必要时直接移除
         for target_id in list(agent.memory.following_list.keys()):
             if target_id == agent.agent_id:
                 continue

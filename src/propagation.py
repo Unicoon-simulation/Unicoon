@@ -8,22 +8,13 @@ from parse import parse_news_rewrite_response
 from servellm import submit, format_messages
 from persuasion import generate_persuasion_decision
 
-PARSE_RETRY_LIMIT = 2  # 解析失败时的最大重试次数
+PARSE_RETRY_LIMIT = 2
 
 def find_leadernodes(graph) -> List[str]:
-    """
-    根据节点度数识别leader节点
-    Args:
-        graph: NetworkX图对象
-    Returns:
-        度数最高的20%节点ID列表
-    """
     logger = logging.getLogger("propagation")
     
-    # 计算所有节点的度数
     degree_dict = dict(graph.degree())
     
-    # 按度数排序，选择前20%作为leader
     sorted_nodes = sorted(degree_dict.items(), key=lambda x: x[1], reverse=True)
     leader_count = max(1, int(len(sorted_nodes) * 0.2))
     leader_nodes = [node_id for node_id, degree in sorted_nodes[:leader_count]]
@@ -37,16 +28,6 @@ async def news_propagation(
     round_id: int,
     executor
 ):
-    """
-    基于层次遍历的新闻传播主流程
-    Args:
-        agents: 智能体字典
-        graph: 图结构
-        round_id: 轮数
-        executor: LLM执行器
-    Returns:
-        Dict[str, Any]: 包含层级传播日志的结构化信息
-    """
     logger = logging.getLogger("propagation")
     logger.info(f"[Round {round_id}] Starting hierarchical propagation")
     
@@ -64,7 +45,7 @@ async def news_propagation(
 
     distribute_initial_news_to_leaders(agents, leader_nodes)
 
-    max_layers = 100  # 最大传播层数限制
+    max_layers = 100
     while current_layer_nodes and layer < max_layers:
         logger.info(f"[Round {round_id}] Processing layer {layer} with {len(current_layer_nodes)} nodes")
 
@@ -97,17 +78,6 @@ async def process_layer_propagation(
     executor,
     layer: int
 ) -> Tuple[List[str], List[Dict[str, Any]]]:
-    """
-    处理单层的新闻传播
-    Args:
-        layer_nodes: 当前层的节点列表
-        agents: 智能体字典
-        graph: 图结构
-        executor: LLM执行器
-        layer: 当前层次
-    Returns:
-        (下一层需要处理的节点列表, 当前层的传播记录)
-    """
     logger = logging.getLogger("propagation")
     next_layer_nodes = set()
     layer_node_logs: List[Dict[str, Any]] = []
@@ -118,7 +88,6 @@ async def process_layer_propagation(
             agent = agents[node_id]
             agent.memory.propagation_layer = layer
 
-            # 只处理有新闻且未发布的节点
             if agent.memory.received_news_inround and not agent.memory.has_published_this_round:
                 task = trans_news(agent, agent.memory.received_news_inround, executor)
                 transformation_tasks.append((node_id, task))
@@ -257,15 +226,6 @@ async def trans_news(
     news_list: List[News],
     executor
 ) -> Dict[str, Any]:
-    """
-    单个智能体的新闻改写，返回用于下层传播的新闻
-    Args:
-        agent: 智能体快照
-        news_list: 要改写的新闻列表
-        executor: LLM执行器
-    Returns:
-        转换结果字典，包含transformed_news用于传播
-    """
     logger = logging.getLogger("propagation")
     
     if not news_list:
@@ -388,7 +348,6 @@ async def trans_news(
         "transformed_news": transformed_news_list
     }
 def get_node_followers(node_id: str, graph, agents: Dict[str, AgentSnapshot]) -> List[str]:
-    """获取关注该节点的所有智能体。"""
     followers = []
 
     if hasattr(graph, "predecessors"):
@@ -402,7 +361,6 @@ def get_node_followers(node_id: str, graph, agents: Dict[str, AgentSnapshot]) ->
 
 
 def distribute_initial_news_to_leaders(agents: Dict[str, AgentSnapshot], leader_nodes: List[str]):
-    """为 leader 节点分配推荐新闻。"""
     for leader_id in leader_nodes:
         if leader_id in agents:
             agent = agents[leader_id]
@@ -411,7 +369,6 @@ def distribute_initial_news_to_leaders(agents: Dict[str, AgentSnapshot], leader_
 
 
 def reset_propagation_state(agents: Dict[str, AgentSnapshot]):
-    """重置所有智能体的传播状态。"""
     for agent in agents.values():
         agent.memory.received_news_inround.clear()
         agent.memory.published_news_inround.clear()

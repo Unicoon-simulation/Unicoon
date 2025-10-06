@@ -9,9 +9,7 @@ from build_prompt import build_rec_prompt
 from parse import parse_recommend_response
 from servellm import submit, format_messages
 
-# 推荐超边数据结构
 class HyperEdge:
-    """超边对象，表示共同关注某条新闻的智能体群组"""
     def __init__(self, news: News, agents_id: List[str]):
         self.news_id = news.news_id
         self.agents_id = agents_id
@@ -20,7 +18,6 @@ class HyperEdge:
 
 
 def _normalize_news_id(value):
-    """将模型返回的 news_id 统一转换为字符串。"""
     if value is None:
         return None
     if isinstance(value, str):
@@ -43,27 +40,14 @@ async def get_rec(
     executor,
     rec_type: str = "llm"
 ) -> List[HyperEdge]:
-    """
-    为所有智能体生成新闻推荐，构建超边
-    Args:
-        agents: 智能体字典
-        news_list: 新闻列表
-        executor: LLM执行器
-        rec_type: 推荐类型 ("llm", "random", "none")
-    Returns:
-        超边列表，每个超边包含对同一新闻感兴趣的智能体
-    """
     logger = logging.getLogger("rec")
     logger.info(f"Starting recommendations for {len(agents)} agents with {len(news_list)} news items using strategy: {rec_type}")
     
     if rec_type == "none":
-        # 消融实验：leader节点接收所有新闻
         raw_edges = build_leader_hyperedges(agents, news_list)
     elif rec_type == "random":
-        # 随机推荐
         raw_edges = build_random_hyperedges(agents, news_list)
-    else:  # llm推荐
-        # 使用LLM进行个性化推荐
+    else:
         raw_edges = await build_llm_hyperedges(agents, news_list, executor)
 
     return post_process_hyperedges(raw_edges, agents)
@@ -73,7 +57,6 @@ async def build_llm_hyperedges(
     news_list: List[News],
     executor
 ) -> List[HyperEdge]:
-    """使用 LLM 构建个性化推荐超边。"""
     logger = logging.getLogger("rec")
 
     news_map = {news.news_id: news for news in news_list}
@@ -124,20 +107,11 @@ def build_random_hyperedges(
     agents: Dict[str, AgentSnapshot],
     news_list: List[News]
 ) -> List[HyperEdge]:
-    """
-    构建随机推荐超边
-    Args:
-        agents: 智能体字典
-        news_list: 新闻列表
-    Returns:
-        随机分配的超边列表
-    """
     logger = logging.getLogger("rec")
     agent_ids = list(agents.keys())
     hyperedges = []
     
     for news in news_list:
-        # 随机选择30%-70%的智能体对此新闻感兴趣
         sample_ratio = random.uniform(0.3, 0.7)
         sample_size = max(1, int(len(agent_ids) * sample_ratio))
         
@@ -151,29 +125,18 @@ def build_leader_hyperedges(
     agents: Dict[str, AgentSnapshot],
     news_list: List[News]
 ) -> List[HyperEdge]:
-    """
-    构建领导者推荐超边（消融实验用）
-    Args:
-        agents: 智能体字典
-        news_list: 新闻列表
-    Returns:
-        领导者接收所有新闻的超边列表
-    """
     logger = logging.getLogger("rec")
     
-    # 找出所有leader节点
     leader_ids = []
     for agent_id, agent in agents.items():
         if agent.profile.is_leader:
             leader_ids.append(agent_id)
     
-    # 如果没有显式的leader，选择关注者最多的节点作为leader
     if not leader_ids:
         follower_counts = {}
         for agent_id, agent in agents.items():
             follower_counts[agent_id] = len(agent.memory.following_list)
         
-        # 选择关注者数量前20%的节点作为leader
         sorted_agents = sorted(follower_counts.items(), key=lambda x: x[1], reverse=True)
         leader_count = max(1, int(len(sorted_agents) * 0.2))
         leader_ids = [agent_id for agent_id, _ in sorted_agents[:leader_count]]
@@ -190,29 +153,17 @@ async def recommend_news_single(
     news_list: List[News],
     executor
 ) -> List[Dict[str, Any]]:
-    """
-    为单个智能体推荐新闻
-    Args:
-        agent: 智能体快照
-        news_list: 新闻列表
-        executor: LLM执行器
-    Returns:
-        推荐结果列表
-    """
     logger = logging.getLogger("rec")
     
-    # 构建推荐提示词
     prompt = build_rec_prompt(agent, news_list)
     messages = format_messages(prompt, system_prompt=agent.profile.agent_prompt)
     
-    # 调用LLM服务
     response = await submit(messages, executor, parse_type="json")
 
     if not response:
         logger.warning(f"Agent {agent.agent_id} returned an empty recommendation response")
         return []
 
-    # 解析推荐结果
     try:
         recommendations = parse_recommend_response(response)
     except Exception as exc:  # noqa: BLE001
@@ -232,14 +183,6 @@ def split_large_hyperedges(
     hyperedges: List[HyperEdge],
     max_size: int = 10
 ) -> List[HyperEdge]:
-    """
-    将过大的超边分割成多个小超边
-    Args:
-        hyperedges: 原始超边列表
-        max_size: 最大智能体数量
-    Returns:
-        分割后的超边列表
-    """
     result = []
 
     for hyperedge in hyperedges:
@@ -279,7 +222,6 @@ def post_process_hyperedges(
     min_size: int = 1,
     max_size: int = 10
 ) -> List[HyperEdge]:
-    """去除重复、裁剪规模并保证超边内容有效。"""
     logger = logging.getLogger("rec")
     processed: List[HyperEdge] = []
     queue: List[HyperEdge] = list(hyperedges)

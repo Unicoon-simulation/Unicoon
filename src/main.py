@@ -25,12 +25,10 @@ from political_shift import (
 from update_mem import update_mem
 from traits_utils import normalize_traits_list
 
-# 设置默认运行目录
 DEFAULT_RUN_DIR = Path("runs") / datetime.now().strftime("%Y%m%d_%H%M%S")
 
 @dataclass
 class LLMConfig:
-    """LLM配置管理类"""
     base_url: str = "http://localhost:8001/v1"
     api_key: str = "EMPTY"
     model: str = "qwen32"
@@ -42,36 +40,25 @@ class LLMConfig:
     batch_size: int = 4
     queue_size: int = 512
 
-# 日志配置
 def setup_logging() -> logging.Logger:
-    """
-    设置日志记录器
-    Returns:
-        配置好的日志记录器
-    """
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     return logging.getLogger("MultiAgentSimulation")
 
-# LLM提供方类
 class OpenAIProvider:
-    """OpenAI兼容接口提供方"""
     def __init__(self, config: LLMConfig):
         self.config = config
         self.logger = logging.getLogger("OpenAIProvider")
     
     async def generate(self, messages: List[Dict], **kwargs) -> str:
-        """生成响应，直接调用servellm.py的API函数"""
-        # 合并配置参数
         api_params = {
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             **kwargs
         }
         
-        # 调用servellm.py中的实际API函数
         response = await call_openai_api(
             messages=messages,
             base_url=self.config.base_url,
@@ -87,7 +74,6 @@ class OpenAIProvider:
         return response
 
 class LLMExecutor:
-    """LLM 执行器，使用任务队列控制并发。"""
 
     def __init__(
         self,
@@ -164,11 +150,6 @@ class LLMExecutor:
 
 
 def parse_args() -> argparse.Namespace:
-    """解析命令行参数。
-    
-    Returns:
-        argparse.Namespace: 包含所有命令行参数的命名空间对象。
-    """
     p = argparse.ArgumentParser(description="多智能体仿真")
     p.add_argument("--edge_file", default="data/test_data/12831.edges", help="边列表文件")
     p.add_argument("--persona_file", default="data/agent_background.json", help="智能体背景JSON文件")
@@ -184,7 +165,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_resume_state(resume_dir: str, resume_round: int) -> Dict[str, AgentSnapshot]:
-    """从指定轮次恢复智能体状态。"""
     import json
 
     round_dir = Path(resume_dir) / f"round_{resume_round:03d}"
@@ -337,37 +317,23 @@ def load_resume_state(resume_dir: str, resume_round: int) -> Dict[str, AgentSnap
 
 def build_agents(edge_file: Path, persona_file: Path) -> Dict[str, AgentSnapshot]:
     """Construct agents from edge and persona data."""
-    # 加载智能体profile
     agents = load_agent_profile(str(persona_file))
     
-    # 加载图结构
     _, node_list, edge_list = load_graph_from_file(str(edge_file))
     
-    # 为每个智能体建立社交关系
     for agent_id, agent in agents.items():
         if agent_id in node_list:
-            # 获取该智能体关注的所有节点
             following = {}
             for source, target, trust, interest in edge_list:
                 if source == agent_id:
                     following[target] = Score(trust=trust, interest=interest)
             
-            # 更新智能体的关注列表
             agent.memory.following_list = following
     
     print(f"[Agent Builder] Created {len(agents)} agents")
     return agents
 
 def build_provider(config: LLMConfig, logger: logging.Logger = None) -> LLMExecutor:
-    """构建LLM提供方实例
-    
-    Args:
-        config: LLM配置对象
-        logger: 日志记录器
-    
-    Returns:
-        包装好并发控制的LLMExecutor对象
-    """
     provider = OpenAIProvider(config)
     return LLMExecutor(
         provider,
@@ -378,40 +344,6 @@ def build_provider(config: LLMConfig, logger: logging.Logger = None) -> LLMExecu
     )
 
 
-"""
-=== 恢复功能使用说明 ===
-
-本系统支持从任意轮次恢复仿真，用于处理中途运行失败的情况。
-
-## 参数说明
---resume_round: 指定要恢复的轮次编号（整数）
---resume_dir: 指定恢复的运行目录路径（字符串）
---rounds: 从恢复轮次开始，再执行的轮数（方案A语义）
-
-## 使用示例
-
-### 正常启动新仿真
-python src/main.py --edge_file data/small_world_50.edges --persona_file data/50_profile.json --news_file data/combined_news.json --rounds 10
-
-### 从第7轮恢复，再执行3轮（第8、9、10轮）
-python src/main.py --edge_file data/small_world_50.edges --persona_file data/50_profile.json --news_file data/combined_news.json --resume_round 7 --resume_dir runs/20250726_234223 --rounds 3
-
-## 执行逻辑
-- 恢复模式：加载第N轮的完整状态（智能体profile+memory+网络），从第N+1轮开始继续执行
-- 输出目录：复用原运行目录，从恢复轮次+1开始覆盖后续数据
-- 轮数计算：--rounds表示从恢复点再执行多少轮，而不是执行到第几轮
-
-## 文件要求
-恢复需要以下文件存在：
-- {resume_dir}/round_{resume_round:03d}/round_{resume_round}_profile.json
-- {resume_dir}/round_{resume_round:03d}/round_{resume_round}_edges.edges  
-- {resume_dir}/round_{resume_round:03d}/round_{resume_round}_mem.json
-
-## 注意事项
-- 文件不存在时会自然报错，便于调试
-- 恢复轮次编号从0开始计数
-- 确保原始数据文件（edge_file, persona_file, news_file）与原仿真一致
-"""
 async def main_async():
     """Entry point orchestrating the round-based simulation."""
     args=parse_args()
@@ -422,7 +354,6 @@ async def main_async():
     topic_label = args.topic.strip() or None
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # 解析消融模式配置
     def _parse_flag(value: str | None, fallback: bool = False) -> bool:
         if value is None or value.strip() == "":
             return fallback
@@ -441,7 +372,6 @@ async def main_async():
         fallback=ablation_mode == "rec_only",
     )
     
-    # 直接使用默认LLM配置
     llm_config = LLMConfig()
     llm_config.base_url = os.getenv("LLM_BASE_URL", llm_config.base_url)
     llm_config.api_key = os.getenv("LLM_API_KEY", llm_config.api_key)
@@ -452,20 +382,17 @@ async def main_async():
     llm_config.timeout = float(os.getenv("LLM_TIMEOUT", llm_config.timeout))
     llm_config.max_tokens = int(os.getenv("LLM_MAX_TOKENS", llm_config.max_tokens))
     
-    # 初始化日志系统
     logger = setup_logging()
     
-    # 构建LLM执行器
     executor = build_provider(llm_config, logger=logger)
     try:
         print(f"[LLM Config] URL: {llm_config.base_url}, model: {llm_config.model}, concurrency: {llm_config.concurrency}, batch size: {llm_config.batch_size}, queue: {llm_config.queue_size}")
     
-        # 检测恢复模式
         if args.resume_round is not None:
             print(f"[Resume Mode] Resuming from round {args.resume_round} in {args.resume_dir}")
             agents = load_resume_state(args.resume_dir, args.resume_round)
             start_round = args.resume_round + 1
-            run_dir = Path(args.resume_dir)  # 复用原目录
+            run_dir = Path(args.resume_dir)
         else:
             print("[Normal Mode] Starting a new simulation")
             agents = build_agents(edge_file, persona_file)
@@ -496,15 +423,12 @@ async def main_async():
 
             affiliation_baseline = capture_affiliation_snapshot(agents)
 
-            # 加载新闻
-            news_list = load_news(str(news_file), r * 10, (r + 1) * 10)  # 每轮10条新闻
+            news_list = load_news(str(news_file), r * 10, (r + 1) * 10)
 
-            # 构建超边 (推荐阶段)
             hyperedges = await get_rec(agents, news_list, executor, args.recommendation_strategy)
 
             recommendation_log = []
 
-            # 将推荐结果分配给智能体的received_news字段
             for hyperedge in hyperedges:
                 recommendation_log.append({
                     "news": [
@@ -519,7 +443,6 @@ async def main_async():
                 })
                 for agent_id in hyperedge.agents_id:
                     if agent_id in agents:
-                        # 为该智能体分配超边对应的新闻
                         for original_news in hyperedge.news_items:
                             recommended_news = News(
                                 news_id=original_news.news_id,
@@ -530,7 +453,6 @@ async def main_async():
                             )
                             agents[agent_id].memory.received_news.append(recommended_news)
 
-            # 新闻传播改写
             if disable_propagation:
                 logger.info("[Round %d] Propagation disabled by configuration", r)
                 reset_propagation_state(agents)
@@ -546,7 +468,6 @@ async def main_async():
             else:
                 propagation_log = await news_propagation(agents, graph, r, executor)
 
-            # 群组划分，超边中选取2-10个智能体组成小组
             discussion_logs: list[Dict[str, Any]] = []
             discussion_logs_for_dump: list[Dict[str, Any]] = []
             if disable_discussion:
@@ -590,16 +511,13 @@ async def main_async():
                         }
                         discussion_logs_for_dump.append(discussion_record)
 
-            # 持久化小组讨论结果
             round_dir = run_dir / f"round_{r:03d}"
             round_dir.mkdir(exist_ok=True)
 
-            # 保存讨论记录到轮次专属文件
             discussion_file = round_dir / f"round_{r}_discussions.json"
             with open(discussion_file, 'w', encoding='utf-8') as f:
                 json.dump(discussion_logs_for_dump, f, indent=2, ensure_ascii=False)
 
-            # 记忆更新和整理
             activities_log = await update_mem(r, agents, executor)
 
             politics_summary = summarize_political_shift(affiliation_baseline, agents, r, topic=topic_label)
@@ -614,7 +532,6 @@ async def main_async():
             with open(round_dir / f"round_{r}_activities.json", 'w', encoding='utf-8') as f:
                 json.dump(activities_log, f, indent=2, ensure_ascii=False)
 
-            # 从智能体内存中同步最新的评分到边列表，并更新下一轮所用的图
             if disable_propagation:
                 logger.info("[Round %d] Graph rewiring skipped by propagation setting", r)
             else:
